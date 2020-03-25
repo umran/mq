@@ -65,37 +65,39 @@ func (conn *AWSConnection) Subscribe(subsctiptionID string, handler func(*Messag
 			return err
 		}
 
-		if len(response.Messages) > 0 {
-			outerMsg := response.Messages[0]
-			outerData, err := json.RawMessage(*outerMsg.Body).MarshalJSON()
-			if err != nil {
-				return err
-			}
+		if len(response.Messages) == 0 {
+			continue
+		}
 
-			msg := &snsMessage{}
-			err = json.Unmarshal(outerData, &msg)
-			if err != nil {
-				return err
-			}
+		outerMsg := response.Messages[0]
+		outerData, err := json.RawMessage(*outerMsg.Body).MarshalJSON()
+		if err != nil {
+			return err
+		}
 
-			attributes := make(map[string]string)
-			for attribute, value := range msg.MessageAttributes {
-				if value.Type == "String" {
-					attributes[attribute] = value.Value
-				}
-			}
+		msg := &snsMessage{}
+		err = json.Unmarshal(outerData, &msg)
+		if err != nil {
+			return err
+		}
 
-			if err := handler(&Message{
-				Data:       []byte(msg.Message),
-				Attributes: attributes,
-			}); err == nil {
-				// acknowledge processing by deleting the message from queue
-				// we can safely ignore delete errors because message processing is assumed to be idempotent
-				conn.sqsClient.DeleteMessage(&sqs.DeleteMessageInput{
-					QueueUrl:      &queueURL,
-					ReceiptHandle: outerMsg.ReceiptHandle,
-				})
+		attributes := make(map[string]string)
+		for attribute, value := range msg.MessageAttributes {
+			if value.Type == "String" {
+				attributes[attribute] = value.Value
 			}
+		}
+
+		if err := handler(&Message{
+			Data:       []byte(msg.Message),
+			Attributes: attributes,
+		}); err == nil {
+			// acknowledge processing by deleting the message from queue
+			// we can safely ignore delete errors because message processing is assumed to be idempotent
+			conn.sqsClient.DeleteMessage(&sqs.DeleteMessageInput{
+				QueueUrl:      &queueURL,
+				ReceiptHandle: outerMsg.ReceiptHandle,
+			})
 		}
 	}
 }
