@@ -51,10 +51,7 @@ func (policy *sqsPolicy) AddPermission(queueARN, topicARN string) error {
 
 	if !exists {
 		statement := newSqsPolicyStatement(queueARN, topicARN)
-		statementBytes, err := json.Marshal(statement)
-		if err != nil {
-			return err
-		}
+		statementBytes, _ := json.Marshal(statement)
 
 		policy.Statement = append(policy.Statement, json.RawMessage(statementBytes))
 	}

@@ -13,8 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/sqs"
 )
 
-// AWSConnection ...
-type AWSConnection struct {
+type awsConnection struct {
 	snsClient *sns.SNS
 	sqsClient *sqs.SQS
 	topicARNs map[string]string
@@ -22,7 +21,7 @@ type AWSConnection struct {
 }
 
 // CreateTopic ...
-func (conn *AWSConnection) CreateTopic(topicID string) error {
+func (conn *awsConnection) CreateTopic(topicID string) error {
 	_, err := conn.snsClient.CreateTopic(&sns.CreateTopicInput{
 		Name: aws.String(topicID),
 	})
@@ -31,7 +30,7 @@ func (conn *AWSConnection) CreateTopic(topicID string) error {
 }
 
 // CreateSubscription ...
-func (conn *AWSConnection) CreateSubscription(subscriptionID string, options *SubscriptionOptions) error {
+func (conn *awsConnection) CreateSubscription(subscriptionID string, options *SubscriptionOptions) error {
 	// resolve topic arn first
 	topicARN, err := conn.getTopicARN(options.TopicID)
 	if err != nil {
@@ -65,24 +64,15 @@ func (conn *AWSConnection) CreateSubscription(subscriptionID string, options *Su
 
 	queueARN := *queueAttributes.Attributes["QueueArn"]
 
-	var policy *sqsPolicy
+	policy := newSqsPolicy(queueARN)
 	if rawPolicy := queueAttributes.Attributes["Policy"]; rawPolicy != nil {
 		policyBytes := json.RawMessage(*rawPolicy)
 
-		policy = new(sqsPolicy)
-		err = json.Unmarshal(policyBytes, policy)
-		if err != nil {
-			return err
-		}
-	} else {
-		policy = newSqsPolicy(queueARN)
+		json.Unmarshal(policyBytes, policy)
 	}
 
 	policy.AddPermission(queueARN, topicARN)
-	policyBytes, err := json.Marshal(policy)
-	if err != nil {
-		return err
-	}
+	policyBytes, _ := json.Marshal(policy)
 
 	_, err = conn.sqsClient.SetQueueAttributes(&sqs.SetQueueAttributesInput{
 		QueueUrl: queue.QueueUrl,
@@ -106,7 +96,7 @@ func (conn *AWSConnection) CreateSubscription(subscriptionID string, options *Su
 }
 
 // Publish ...
-func (conn *AWSConnection) Publish(topicID string, message *Message) error {
+func (conn *awsConnection) Publish(topicID string, message *Message) error {
 	topicARN, err := conn.getTopicARN(topicID)
 	if err != nil {
 		return err
@@ -134,7 +124,7 @@ func (conn *AWSConnection) Publish(topicID string, message *Message) error {
 }
 
 // Subscribe ...
-func (conn *AWSConnection) Subscribe(subsctiptionID string, handler func(*Message) error) error {
+func (conn *awsConnection) Subscribe(subsctiptionID string, handler func(*Message) error) error {
 	queueURL, err := conn.getQueueURL(subsctiptionID)
 	if err != nil {
 		return err
@@ -186,7 +176,7 @@ func (conn *AWSConnection) Subscribe(subsctiptionID string, handler func(*Messag
 	}
 }
 
-func (conn *AWSConnection) getQueueURL(subscriptionID string) (string, error) {
+func (conn *awsConnection) getQueueURL(subscriptionID string) (string, error) {
 	queueURL, _ := conn.queueURLs[subscriptionID]
 	if queueURL == "" {
 		queueURLResult, err := conn.sqsClient.GetQueueUrl(&sqs.GetQueueUrlInput{
@@ -204,7 +194,7 @@ func (conn *AWSConnection) getQueueURL(subscriptionID string) (string, error) {
 	return queueURL, nil
 }
 
-func (conn *AWSConnection) getTopicARN(topicID string) (string, error) {
+func (conn *awsConnection) getTopicARN(topicID string) (string, error) {
 	topicARN, _ := conn.topicARNs[topicID]
 
 	if topicARN == "" {
@@ -240,8 +230,7 @@ func (conn *AWSConnection) getTopicARN(topicID string) (string, error) {
 	return topicARN, nil
 }
 
-// NewAWSConnection ...
-func NewAWSConnection(region string) (*AWSConnection, error) {
+func newAwsConnection(region string) (Broker, error) {
 	session, err := session.NewSession(&aws.Config{
 		Region: aws.String(region),
 	})
@@ -250,7 +239,7 @@ func NewAWSConnection(region string) (*AWSConnection, error) {
 		return nil, err
 	}
 
-	conn := &AWSConnection{
+	conn := &awsConnection{
 		snsClient: sns.New(session),
 		sqsClient: sqs.New(session),
 		topicARNs: make(map[string]string),

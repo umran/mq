@@ -8,14 +8,13 @@ import (
 	"cloud.google.com/go/pubsub"
 )
 
-// GCloudConnection ...
-type GCloudConnection struct {
+type gCloudConnection struct {
 	context context.Context
 	client  *pubsub.Client
 }
 
 // CreateTopic ...
-func (conn *GCloudConnection) CreateTopic(topicID string) error {
+func (conn *gCloudConnection) CreateTopic(topicID string) error {
 	topic := conn.client.Topic(topicID)
 
 	// check if the topic exists
@@ -33,7 +32,7 @@ func (conn *GCloudConnection) CreateTopic(topicID string) error {
 }
 
 // CreateSubscription ...
-func (conn *GCloudConnection) CreateSubscription(subscriptionID string, options *SubscriptionOptions) error {
+func (conn *gCloudConnection) CreateSubscription(subscriptionID string, options *SubscriptionOptions) error {
 	topic := conn.client.Topic(options.TopicID)
 	subscription := conn.client.Subscription(subscriptionID)
 
@@ -77,7 +76,7 @@ func (conn *GCloudConnection) CreateSubscription(subscriptionID string, options 
 }
 
 // Publish ...
-func (conn *GCloudConnection) Publish(topicID string, message *Message) error {
+func (conn *gCloudConnection) Publish(topicID string, message *Message) error {
 	topic := conn.client.Topic(topicID)
 	defer topic.Stop()
 
@@ -91,7 +90,7 @@ func (conn *GCloudConnection) Publish(topicID string, message *Message) error {
 }
 
 // Subscribe ...
-func (conn *GCloudConnection) Subscribe(subscriptionID string, handler func(*Message) error) error {
+func (conn *gCloudConnection) Subscribe(subscriptionID string, handler func(*Message) error) error {
 	subscription := conn.client.Subscription(subscriptionID)
 
 	return subscription.Receive(conn.context, func(ctx context.Context, msg *pubsub.Message) {
@@ -108,15 +107,14 @@ func (conn *GCloudConnection) Subscribe(subscriptionID string, handler func(*Mes
 	})
 }
 
-// NewGCloudConnection ...
-func NewGCloudConnection(project string) (*GCloudConnection, error) {
+func newGcloudConnection(project string) (Broker, error) {
 	ctx := context.Background()
 	client, err := pubsub.NewClient(ctx, project)
 	if err != nil {
 		return nil, err
 	}
 
-	conn := &GCloudConnection{
+	conn := &gCloudConnection{
 		context: ctx,
 		client:  client,
 	}

@@ -6,7 +6,11 @@ import (
 )
 
 func TestGCloudCreateTopic(t *testing.T) {
-	conn, err := NewGCloudConnection("cowrie-271900")
+	conn, err := NewConnection(&Config{
+		Provider:      "gcloud",
+		GCloudProject: "cowrie-271900",
+	})
+
 	if err != nil {
 		t.Error(err)
 	}
@@ -18,7 +22,11 @@ func TestGCloudCreateTopic(t *testing.T) {
 }
 
 func TestGCloudCreateSubscription(t *testing.T) {
-	conn, err := NewGCloudConnection("cowrie-271900")
+	conn, err := NewConnection(&Config{
+		Provider:      "gcloud",
+		GCloudProject: "cowrie-271900",
+	})
+
 	if err != nil {
 		t.Error(err)
 	}
@@ -35,7 +43,11 @@ func TestGCloudCreateSubscription(t *testing.T) {
 }
 
 func TestGCloudPublish(t *testing.T) {
-	conn, err := NewGCloudConnection("cowrie-271900")
+	conn, err := NewConnection(&Config{
+		Provider:      "gcloud",
+		GCloudProject: "cowrie-271900",
+	})
+
 	if err != nil {
 		t.Error(err)
 	}
@@ -50,7 +62,11 @@ func TestGCloudPublish(t *testing.T) {
 }
 
 func TestGCloudSubscribe(t *testing.T) {
-	conn, err := NewGCloudConnection("cowrie-271900")
+	conn, err := NewConnection(&Config{
+		Provider:      "gcloud",
+		GCloudProject: "cowrie-271900",
+	})
+
 	if err != nil {
 		t.Error(err)
 	}
