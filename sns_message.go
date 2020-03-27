@@ -2,10 +2,10 @@ package mq
 
 type snsMessage struct {
 	Message           string
-	MessageAttributes map[string]*snsAttribute
+	MessageAttributes map[string]*snsMessageAttribute
 }
 
-type snsAttribute struct {
+type snsMessageAttribute struct {
 	Type  string
 	Value string
 }
