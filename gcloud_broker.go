@@ -13,7 +13,7 @@ type gcloudBroker struct {
 	client  *pubsub.Client
 }
 
-// CreateTopic creates a new topic with the name `topicID`.
+// CreateTopic creates a new topic.
 // This is an idempotent call and returns no error if the topic already exists.
 func (conn *gcloudBroker) CreateTopic(topicID string) error {
 	topic := conn.client.Topic(topicID)
@@ -32,8 +32,7 @@ func (conn *gcloudBroker) CreateTopic(topicID string) error {
 	return err
 }
 
-// CreateSubscription creates a new subscription, with the name `subscriptionID`,
-// to the topic specified in options.
+// CreateSubscription creates a new subscription to the topic specified in options.
 // This is an idempotent call and returns no error if a subscription with the same id already exists,
 // provided that the topic and other parameters are the same.
 func (conn *gcloudBroker) CreateSubscription(subscriptionID string, options *SubscriptionOptions) error {
@@ -79,7 +78,7 @@ func (conn *gcloudBroker) CreateSubscription(subscriptionID string, options *Sub
 	return err
 }
 
-// Publish publishes a message to the given topic.
+// Publish publishes a message to the specified topic.
 func (conn *gcloudBroker) Publish(topicID string, message *Message) error {
 	topic := conn.client.Topic(topicID)
 	defer topic.Stop()
@@ -95,7 +94,7 @@ func (conn *gcloudBroker) Publish(topicID string, message *Message) error {
 
 // Subscribe consumes messages from the specified subscription
 // and passes them on to the handler function.
-// This is a blocking function and doesn't return until it encounters an error.
+// This is a blocking function and doesn't return until it encounters a network error.
 func (conn *gcloudBroker) Subscribe(subscriptionID string, handler func(*Message) error) error {
 	subscription := conn.client.Subscription(subscriptionID)
 

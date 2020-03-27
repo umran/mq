@@ -20,7 +20,7 @@ type awsBroker struct {
 	queueURLs map[string]string
 }
 
-// CreateTopic creates a new topic with the name `topicID`.
+// CreateTopic creates a new topic.
 // This is an idempotent call and returns no error if the topic already exists.
 func (conn *awsBroker) CreateTopic(topicID string) error {
 	_, err := conn.snsClient.CreateTopic(&sns.CreateTopicInput{
@@ -30,8 +30,7 @@ func (conn *awsBroker) CreateTopic(topicID string) error {
 	return err
 }
 
-// CreateSubscription creates a new subscription, with the name `subscriptionID`,
-// to the topic specified in options.
+// CreateSubscription creates a new subscription to the topic specified in options.
 // This is an idempotent call and returns no error if a subscription with the same id already exists,
 // provided that the topic and other parameters are the same.
 func (conn *awsBroker) CreateSubscription(subscriptionID string, options *SubscriptionOptions) error {
@@ -99,7 +98,7 @@ func (conn *awsBroker) CreateSubscription(subscriptionID string, options *Subscr
 	return err
 }
 
-// Publish publishes a message to the given topic.
+// Publish publishes a message to the specified topic.
 func (conn *awsBroker) Publish(topicID string, message *Message) error {
 	topicARN, err := conn.getTopicARN(topicID)
 	if err != nil {
@@ -129,7 +128,7 @@ func (conn *awsBroker) Publish(topicID string, message *Message) error {
 
 // Subscribe consumes messages from the specified subscription
 // and passes them on to the handler function.
-// This is a blocking function and doesn't return until it encounters an error.
+// This is a blocking function and doesn't return until it encounters a network error.
 func (conn *awsBroker) Subscribe(subsctiptionID string, handler func(*Message) error) error {
 	queueURL, err := conn.getQueueURL(subsctiptionID)
 	if err != nil {
