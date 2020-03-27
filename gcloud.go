@@ -8,13 +8,13 @@ import (
 	"cloud.google.com/go/pubsub"
 )
 
-type gCloudConnection struct {
+type gcloudBroker struct {
 	context context.Context
 	client  *pubsub.Client
 }
 
 // CreateTopic ...
-func (conn *gCloudConnection) CreateTopic(topicID string) error {
+func (conn *gcloudBroker) CreateTopic(topicID string) error {
 	topic := conn.client.Topic(topicID)
 
 	// check if the topic exists
@@ -32,7 +32,7 @@ func (conn *gCloudConnection) CreateTopic(topicID string) error {
 }
 
 // CreateSubscription ...
-func (conn *gCloudConnection) CreateSubscription(subscriptionID string, options *SubscriptionOptions) error {
+func (conn *gcloudBroker) CreateSubscription(subscriptionID string, options *SubscriptionOptions) error {
 	topic := conn.client.Topic(options.TopicID)
 	subscription := conn.client.Subscription(subscriptionID)
 
@@ -76,7 +76,7 @@ func (conn *gCloudConnection) CreateSubscription(subscriptionID string, options 
 }
 
 // Publish ...
-func (conn *gCloudConnection) Publish(topicID string, message *Message) error {
+func (conn *gcloudBroker) Publish(topicID string, message *Message) error {
 	topic := conn.client.Topic(topicID)
 	defer topic.Stop()
 
@@ -90,7 +90,7 @@ func (conn *gCloudConnection) Publish(topicID string, message *Message) error {
 }
 
 // Subscribe ...
-func (conn *gCloudConnection) Subscribe(subscriptionID string, handler func(*Message) error) error {
+func (conn *gcloudBroker) Subscribe(subscriptionID string, handler func(*Message) error) error {
 	subscription := conn.client.Subscription(subscriptionID)
 
 	return subscription.Receive(conn.context, func(ctx context.Context, msg *pubsub.Message) {
@@ -107,14 +107,14 @@ func (conn *gCloudConnection) Subscribe(subscriptionID string, handler func(*Mes
 	})
 }
 
-func newGcloudConnection(project string) (Broker, error) {
+func newGcloudBroker(project string) (Broker, error) {
 	ctx := context.Background()
 	client, err := pubsub.NewClient(ctx, project)
 	if err != nil {
 		return nil, err
 	}
 
-	conn := &gCloudConnection{
+	conn := &gcloudBroker{
 		context: ctx,
 		client:  client,
 	}

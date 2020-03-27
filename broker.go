@@ -9,13 +9,13 @@ type Config struct {
 	GCloudProject string
 }
 
-// NewConnection ...
-func NewConnection(config *Config) (Broker, error) {
+// NewBroker ...
+func NewBroker(config *Config) (Broker, error) {
 	switch config.Provider {
 	case "aws":
-		return newAwsConnection(config.AWSRegion)
+		return newAwsBroker(config.AWSRegion)
 	case "gcloud":
-		return newGcloudConnection(config.GCloudProject)
+		return newGcloudBroker(config.GCloudProject)
 	default:
 		return nil, errors.New("unrecognized provider")
 	}

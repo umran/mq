@@ -6,7 +6,7 @@ import (
 )
 
 func TestAWSCreateTopic(t *testing.T) {
-	conn, err := NewConnection(&Config{
+	conn, err := NewBroker(&Config{
 		Provider:  "aws",
 		AWSRegion: "us-west-2",
 	})
@@ -22,7 +22,7 @@ func TestAWSCreateTopic(t *testing.T) {
 }
 
 func TestAWSCreateSubscription(t *testing.T) {
-	conn, err := NewConnection(&Config{
+	conn, err := NewBroker(&Config{
 		Provider:  "aws",
 		AWSRegion: "us-west-2",
 	})
@@ -43,7 +43,7 @@ func TestAWSCreateSubscription(t *testing.T) {
 }
 
 func TestAWSPublish(t *testing.T) {
-	conn, err := NewConnection(&Config{
+	conn, err := NewBroker(&Config{
 		Provider:  "aws",
 		AWSRegion: "us-west-2",
 	})
@@ -65,7 +65,7 @@ func TestAWSPublish(t *testing.T) {
 }
 
 func TestAWSSubscribe(t *testing.T) {
-	conn, err := NewConnection(&Config{
+	conn, err := NewBroker(&Config{
 		Provider:  "aws",
 		AWSRegion: "us-west-2",
 	})

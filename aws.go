@@ -13,7 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/sqs"
 )
 
-type awsConnection struct {
+type awsBroker struct {
 	snsClient *sns.SNS
 	sqsClient *sqs.SQS
 	topicARNs map[string]string
@@ -21,7 +21,7 @@ type awsConnection struct {
 }
 
 // CreateTopic ...
-func (conn *awsConnection) CreateTopic(topicID string) error {
+func (conn *awsBroker) CreateTopic(topicID string) error {
 	_, err := conn.snsClient.CreateTopic(&sns.CreateTopicInput{
 		Name: aws.String(topicID),
 	})
@@ -30,7 +30,7 @@ func (conn *awsConnection) CreateTopic(topicID string) error {
 }
 
 // CreateSubscription ...
-func (conn *awsConnection) CreateSubscription(subscriptionID string, options *SubscriptionOptions) error {
+func (conn *awsBroker) CreateSubscription(subscriptionID string, options *SubscriptionOptions) error {
 	// resolve topic arn first
 	topicARN, err := conn.getTopicARN(options.TopicID)
 	if err != nil {
@@ -96,7 +96,7 @@ func (conn *awsConnection) CreateSubscription(subscriptionID string, options *Su
 }
 
 // Publish ...
-func (conn *awsConnection) Publish(topicID string, message *Message) error {
+func (conn *awsBroker) Publish(topicID string, message *Message) error {
 	topicARN, err := conn.getTopicARN(topicID)
 	if err != nil {
 		return err
@@ -124,7 +124,7 @@ func (conn *awsConnection) Publish(topicID string, message *Message) error {
 }
 
 // Subscribe ...
-func (conn *awsConnection) Subscribe(subsctiptionID string, handler func(*Message) error) error {
+func (conn *awsBroker) Subscribe(subsctiptionID string, handler func(*Message) error) error {
 	queueURL, err := conn.getQueueURL(subsctiptionID)
 	if err != nil {
 		return err
@@ -176,7 +176,7 @@ func (conn *awsConnection) Subscribe(subsctiptionID string, handler func(*Messag
 	}
 }
 
-func (conn *awsConnection) getQueueURL(subscriptionID string) (string, error) {
+func (conn *awsBroker) getQueueURL(subscriptionID string) (string, error) {
 	queueURL, _ := conn.queueURLs[subscriptionID]
 	if queueURL == "" {
 		queueURLResult, err := conn.sqsClient.GetQueueUrl(&sqs.GetQueueUrlInput{
@@ -194,7 +194,7 @@ func (conn *awsConnection) getQueueURL(subscriptionID string) (string, error) {
 	return queueURL, nil
 }
 
-func (conn *awsConnection) getTopicARN(topicID string) (string, error) {
+func (conn *awsBroker) getTopicARN(topicID string) (string, error) {
 	topicARN, _ := conn.topicARNs[topicID]
 
 	if topicARN == "" {
@@ -230,7 +230,7 @@ func (conn *awsConnection) getTopicARN(topicID string) (string, error) {
 	return topicARN, nil
 }
 
-func newAwsConnection(region string) (Broker, error) {
+func newAwsBroker(region string) (Broker, error) {
 	session, err := session.NewSession(&aws.Config{
 		Region: aws.String(region),
 	})
@@ -239,7 +239,7 @@ func newAwsConnection(region string) (Broker, error) {
 		return nil, err
 	}
 
-	conn := &awsConnection{
+	conn := &awsBroker{
 		snsClient: sns.New(session),
 		sqsClient: sqs.New(session),
 		topicARNs: make(map[string]string),

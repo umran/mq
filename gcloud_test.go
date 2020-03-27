@@ -6,7 +6,7 @@ import (
 )
 
 func TestGCloudCreateTopic(t *testing.T) {
-	conn, err := NewConnection(&Config{
+	conn, err := NewBroker(&Config{
 		Provider:      "gcloud",
 		GCloudProject: "cowrie-271900",
 	})
@@ -22,7 +22,7 @@ func TestGCloudCreateTopic(t *testing.T) {
 }
 
 func TestGCloudCreateSubscription(t *testing.T) {
-	conn, err := NewConnection(&Config{
+	conn, err := NewBroker(&Config{
 		Provider:      "gcloud",
 		GCloudProject: "cowrie-271900",
 	})
@@ -43,7 +43,7 @@ func TestGCloudCreateSubscription(t *testing.T) {
 }
 
 func TestGCloudPublish(t *testing.T) {
-	conn, err := NewConnection(&Config{
+	conn, err := NewBroker(&Config{
 		Provider:      "gcloud",
 		GCloudProject: "cowrie-271900",
 	})
@@ -62,7 +62,7 @@ func TestGCloudPublish(t *testing.T) {
 }
 
 func TestGCloudSubscribe(t *testing.T) {
-	conn, err := NewConnection(&Config{
+	conn, err := NewBroker(&Config{
 		Provider:      "gcloud",
 		GCloudProject: "cowrie-271900",
 	})
