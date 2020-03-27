@@ -2,7 +2,7 @@ package mq
 
 import "errors"
 
-// Broker ...
+// Broker is an interface that represents an underlying cloud message broker.
 type Broker interface {
 	// CreateTopic creates a new topic with the name `topicID`.
 	// This is an idempotent call and returns no error if the topic already exists.
@@ -23,7 +23,7 @@ type Broker interface {
 	Subscribe(subscriptionID string, handler func(*Message) error) error
 }
 
-// NewBroker ...
+// NewBroker returns a new broker configured for an underlying cloud provider.
 func NewBroker(config *Config) (Broker, error) {
 	switch config.Provider {
 	case "aws":
