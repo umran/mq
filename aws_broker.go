@@ -182,7 +182,7 @@ func (conn *awsBroker) Subscribe(subsctiptionID string, handler func(*Message) e
 }
 
 func (conn *awsBroker) getQueueURL(subscriptionID string) (string, error) {
-	queueURL, _ := conn.queueURLs[subscriptionID]
+	queueURL := conn.queueURLs[subscriptionID]
 	if queueURL == "" {
 		queueURLResult, err := conn.sqsClient.GetQueueUrl(&sqs.GetQueueUrlInput{
 			QueueName: aws.String(subscriptionID),
@@ -200,7 +200,7 @@ func (conn *awsBroker) getQueueURL(subscriptionID string) (string, error) {
 }
 
 func (conn *awsBroker) getTopicARN(topicID string) (string, error) {
-	topicARN, _ := conn.topicARNs[topicID]
+	topicARN := conn.topicARNs[topicID]
 
 	if topicARN == "" {
 		nextToken := ""
