@@ -30,8 +30,8 @@ func (conn *awsBroker) CreateTopic(topicID string) error {
 	return err
 }
 
-// CreateSubscription creates a new subscription with the name `subscriptionID` that
-// is subscribed to the topic specified in options.
+// CreateSubscription creates a new subscription, with the name `subscriptionID`,
+// to the topic specified in options.
 // This is an idempotent call and returns no error if a subscription with the same id already exists,
 // provided that the topic and other parameters are the same.
 func (conn *awsBroker) CreateSubscription(subscriptionID string, options *SubscriptionOptions) error {

@@ -1,8 +1,8 @@
 package mq
 
-// SubscriptionOptions represents the configuration of a subscription.
+// SubscriptionOptions represents configuration options for a subscription.
 type SubscriptionOptions struct {
-	// TopicID represents the topic to which the subscription is made.
+	// TopicID represents the subscription topic.
 	TopicID string
 
 	// AckDeadline is the duration (in seconds) within which a consumer must

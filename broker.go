@@ -8,8 +8,8 @@ type Broker interface {
 	// This is an idempotent call and returns no error if the topic already exists.
 	CreateTopic(topicID string) error
 
-	// CreateSubscription creates a new subscription with the name `subscriptionID` that
-	// is subscribed to the topic specified in options.
+	// CreateSubscription creates a new subscription, with the name `subscriptionID`,
+	// to the topic specified in options.
 	// This is an idempotent call and returns no error if a subscription with the same id already exists,
 	// provided that the topic and other parameters are the same.
 	CreateSubscription(subscriptionID string, options *SubscriptionOptions) error
