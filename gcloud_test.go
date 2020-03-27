@@ -5,13 +5,42 @@ import (
 	"testing"
 )
 
-func TestGCloudPublisher(t *testing.T) {
+func TestGCloudCreateTopic(t *testing.T) {
 	conn, err := NewGCloudConnection("cowrie-271900")
 	if err != nil {
 		t.Error(err)
 	}
 
-	err = conn.Publish("deposit-processing", &Message{
+	err = conn.CreateTopic("dep-processing")
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestGCloudCreateSubscription(t *testing.T) {
+	conn, err := NewGCloudConnection("cowrie-271900")
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = conn.CreateSubscription("dep-processing-handler", &SubscriptionOptions{
+		TopicID:           "dep-processing",
+		AckDeadline:       10,
+		RetentionDuration: 7 * 24 * 60 * 60,
+	})
+
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestGCloudPublish(t *testing.T) {
+	conn, err := NewGCloudConnection("cowrie-271900")
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = conn.Publish("dep-processing", &Message{
 		Data: []byte("007"),
 	})
 
@@ -20,13 +49,13 @@ func TestGCloudPublisher(t *testing.T) {
 	}
 }
 
-func TestGCloudSubscriber(t *testing.T) {
+func TestGCloudSubscribe(t *testing.T) {
 	conn, err := NewGCloudConnection("cowrie-271900")
 	if err != nil {
 		t.Error(err)
 	}
 
-	err = conn.Publish("deposit-processing", &Message{
+	err = conn.Publish("dep-processing", &Message{
 		Data: []byte("007"),
 	})
 
@@ -38,7 +67,7 @@ func TestGCloudSubscriber(t *testing.T) {
 	errs := make(chan error)
 
 	go func() {
-		if err := conn.Subscribe("deposit-processing", func(msg *Message) error {
+		if err := conn.Subscribe("dep-processing-handler", func(msg *Message) error {
 			msgs <- string(msg.Data)
 			return nil
 		}); err != nil {

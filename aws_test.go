@@ -5,13 +5,42 @@ import (
 	"testing"
 )
 
-func TestAWSPublisher(t *testing.T) {
+func TestAWSCreateTopic(t *testing.T) {
 	conn, err := NewAWSConnection("us-west-2")
 	if err != nil {
 		t.Error(err)
 	}
 
-	err = conn.Publish("deposit-processing", &Message{
+	err = conn.CreateTopic("umt")
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestAWSCreateSubscription(t *testing.T) {
+	conn, err := NewAWSConnection("us-west-2")
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = conn.CreateSubscription("umt-handler", &SubscriptionOptions{
+		TopicID:           "umt",
+		AckDeadline:       10,
+		RetentionDuration: 7 * 24 * 60 * 60,
+	})
+
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestAWSPublish(t *testing.T) {
+	conn, err := NewAWSConnection("us-west-2")
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = conn.Publish("umt", &Message{
 		Data: []byte("007"),
 		Attributes: map[string]string{
 			"service": "deposit",
@@ -23,13 +52,13 @@ func TestAWSPublisher(t *testing.T) {
 	}
 }
 
-func TestAWSSubscriber(t *testing.T) {
+func TestAWSSubscribe(t *testing.T) {
 	conn, err := NewAWSConnection("us-west-2")
 	if err != nil {
 		t.Error(err)
 	}
 
-	err = conn.Publish("deposit-processing", &Message{
+	err = conn.Publish("umt", &Message{
 		Data: []byte("007"),
 		Attributes: map[string]string{
 			"service": "deposit",
@@ -44,7 +73,7 @@ func TestAWSSubscriber(t *testing.T) {
 	errs := make(chan error)
 
 	go func() {
-		if err := conn.Subscribe("deposit-processing", func(msg *Message) error {
+		if err := conn.Subscribe("umt-handler", func(msg *Message) error {
 			msgs <- string(msg.Data)
 			return nil
 		}); err != nil {

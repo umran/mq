@@ -3,6 +3,9 @@ package mq
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -16,6 +19,90 @@ type AWSConnection struct {
 	sqsClient *sqs.SQS
 	topicARNs map[string]string
 	queueURLs map[string]string
+}
+
+// CreateTopic ...
+func (conn *AWSConnection) CreateTopic(topicID string) error {
+	_, err := conn.snsClient.CreateTopic(&sns.CreateTopicInput{
+		Name: aws.String(topicID),
+	})
+
+	return err
+}
+
+// CreateSubscription ...
+func (conn *AWSConnection) CreateSubscription(subscriptionID string, options *SubscriptionOptions) error {
+	// resolve topic arn first
+	topicARN, err := conn.getTopicARN(options.TopicID)
+	if err != nil {
+		return err
+	}
+
+	// create the queue
+	queue, err := conn.sqsClient.CreateQueue(&sqs.CreateQueueInput{
+		QueueName: aws.String(subscriptionID),
+		Attributes: map[string]*string{
+			"VisibilityTimeout":      aws.String(strconv.FormatInt(int64(options.AckDeadline), 10)),
+			"MessageRetentionPeriod": aws.String(strconv.FormatInt(int64(options.RetentionDuration), 10)),
+		},
+	})
+
+	if err != nil {
+		return err
+	}
+
+	queueAttributes, err := conn.sqsClient.GetQueueAttributes(&sqs.GetQueueAttributesInput{
+		QueueUrl: queue.QueueUrl,
+		AttributeNames: []*string{
+			aws.String("QueueArn"),
+			aws.String("Policy"),
+		},
+	})
+
+	if err != nil {
+		return err
+	}
+
+	queueARN := *queueAttributes.Attributes["QueueArn"]
+
+	var policy *sqsPolicy
+	if rawPolicy := queueAttributes.Attributes["Policy"]; rawPolicy != nil {
+		policyBytes := json.RawMessage(*rawPolicy)
+
+		policy = new(sqsPolicy)
+		err = json.Unmarshal(policyBytes, policy)
+		if err != nil {
+			return err
+		}
+	} else {
+		policy = newSqsPolicy(queueARN)
+	}
+
+	policy.AddPermission(queueARN, topicARN)
+	policyBytes, err := json.Marshal(policy)
+	if err != nil {
+		return err
+	}
+
+	_, err = conn.sqsClient.SetQueueAttributes(&sqs.SetQueueAttributesInput{
+		QueueUrl: queue.QueueUrl,
+		Attributes: map[string]*string{
+			"Policy": aws.String(string(policyBytes)),
+		},
+	})
+
+	if err != nil {
+		return err
+	}
+
+	// subscribe queue to topic
+	_, err = conn.snsClient.Subscribe(&sns.SubscribeInput{
+		TopicArn: &topicARN,
+		Endpoint: &queueARN,
+		Protocol: aws.String("sqs"),
+	})
+
+	return err
 }
 
 // Publish ...
@@ -70,10 +157,7 @@ func (conn *AWSConnection) Subscribe(subsctiptionID string, handler func(*Messag
 		}
 
 		outerMsg := response.Messages[0]
-		outerData, err := json.RawMessage(*outerMsg.Body).MarshalJSON()
-		if err != nil {
-			return err
-		}
+		outerData := json.RawMessage(*outerMsg.Body)
 
 		msg := &snsMessage{}
 		err = json.Unmarshal(outerData, &msg)
@@ -102,11 +186,11 @@ func (conn *AWSConnection) Subscribe(subsctiptionID string, handler func(*Messag
 	}
 }
 
-func (conn *AWSConnection) getQueueURL(topicID string) (string, error) {
-	queueURL, _ := conn.queueURLs[topicID]
+func (conn *AWSConnection) getQueueURL(subscriptionID string) (string, error) {
+	queueURL, _ := conn.queueURLs[subscriptionID]
 	if queueURL == "" {
 		queueURLResult, err := conn.sqsClient.GetQueueUrl(&sqs.GetQueueUrlInput{
-			QueueName: aws.String(topicID),
+			QueueName: aws.String(subscriptionID),
 		})
 
 		if err != nil {
@@ -114,7 +198,7 @@ func (conn *AWSConnection) getQueueURL(topicID string) (string, error) {
 		}
 
 		queueURL = *queueURLResult.QueueUrl
-		conn.queueURLs[topicID] = queueURL
+		conn.queueURLs[subscriptionID] = queueURL
 	}
 
 	return queueURL, nil
@@ -138,16 +222,7 @@ func (conn *AWSConnection) getTopicARN(topicID string) (string, error) {
 			}
 
 			for _, topic := range response.Topics {
-				topicAttributes, err := conn.snsClient.GetTopicAttributes(&sns.GetTopicAttributesInput{
-					TopicArn: topic.TopicArn,
-				})
-
-				if err != nil {
-					return topicARN, err
-				}
-
-				displayName, _ := topicAttributes.Attributes["DisplayName"]
-				if displayName != nil && *displayName == topicID {
+				if strings.HasSuffix(*topic.TopicArn, fmt.Sprintf(":%s", topicID)) {
 					topicARN = *topic.TopicArn
 					conn.topicARNs[topicID] = topicARN
 					break search
@@ -168,8 +243,8 @@ func (conn *AWSConnection) getTopicARN(topicID string) (string, error) {
 // NewAWSConnection ...
 func NewAWSConnection(region string) (*AWSConnection, error) {
 	session, err := session.NewSession(&aws.Config{
-		Region: aws.String(region)},
-	)
+		Region: aws.String(region),
+	})
 
 	if err != nil {
 		return nil, err
