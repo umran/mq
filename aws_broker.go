@@ -68,8 +68,8 @@ func (conn *awsBroker) CreateSubscription(subscriptionID string, options *Subscr
 	queueARN := *queueAttributes.Attributes["QueueArn"]
 
 	policy := newSqsPolicy(queueARN)
-	if rawPolicy := queueAttributes.Attributes["Policy"]; rawPolicy != nil {
-		policyBytes := json.RawMessage(*rawPolicy)
+	if existingPolicy := queueAttributes.Attributes["Policy"]; existingPolicy != nil {
+		policyBytes := json.RawMessage(*existingPolicy)
 
 		json.Unmarshal(policyBytes, policy)
 	}
