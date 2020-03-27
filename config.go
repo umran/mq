@@ -1,6 +1,6 @@
 package mq
 
-// Config represents configuration information for the cloud provider.
+// Config represents configuration options for the cloud provider.
 // The Provider can currently be either "aws" or "gcloud".
 // If the Provider is "aws", then AWSRegion must be set.
 // If the Provider is "gcloud", then GCloudProject must be set.
