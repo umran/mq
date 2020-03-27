@@ -55,14 +55,22 @@ func (conn *gcloudBroker) CreateSubscription(subscriptionID string, options *Sub
 	}
 
 	if existsSubscription {
-		// perform a further check to see if it is subscribed to the intended topic
+		// perform a further check to see if it has an identical configuration
 		config, err := subscription.Config(conn.context)
 		if err != nil {
 			return err
 		}
 
 		if config.Topic.ID() != options.TopicID {
-			return errors.New("a subscription by that name already exists and is subscribed to another topic")
+			return errors.New("a subscription by that name already exists and is subscribed to a different topic")
+		}
+
+		if config.AckDeadline != time.Duration(options.AckDeadline)*time.Second {
+			return errors.New("a subscription by that name already exists with a different AckDeadline")
+		}
+
+		if config.RetentionDuration != time.Duration(options.RetentionDuration)*time.Second {
+			return errors.New("a subscription by that name already exists with a different RetentionDuration")
 		}
 
 		return nil
