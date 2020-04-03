@@ -64,7 +64,7 @@ func TestAWSPublish(t *testing.T) {
 	}
 }
 
-func TestAWSSubscribe(t *testing.T) {
+func TestAWSConsume(t *testing.T) {
 	conn, err := NewBroker(&Config{
 		Provider:  "aws",
 		AWSRegion: "us-west-2",
@@ -89,9 +89,11 @@ func TestAWSSubscribe(t *testing.T) {
 	errs := make(chan error)
 
 	go func() {
-		if err := conn.Subscribe("umt-handler", func(msg *Message) error {
+		if err := conn.Consume("umt-handler", func(msg *Message) error {
 			msgs <- string(msg.Data)
 			return nil
+		}, &ConsumerOptions{
+			MaxOutstandingMessages: 10,
 		}); err != nil {
 			errs <- err
 		}

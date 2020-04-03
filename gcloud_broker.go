@@ -89,7 +89,6 @@ func (conn *gcloudBroker) CreateSubscription(subscriptionID string, options *Sub
 // Publish publishes a message to the specified topic.
 func (conn *gcloudBroker) Publish(topicID string, message *Message) error {
 	topic := conn.client.Topic(topicID)
-	defer topic.Stop()
 
 	r := topic.Publish(conn.context, &pubsub.Message{
 		Data:       message.Data,
@@ -100,11 +99,13 @@ func (conn *gcloudBroker) Publish(topicID string, message *Message) error {
 	return err
 }
 
-// Subscribe consumes messages from the specified subscription
+// Consume consumes messages from the specified subscription
 // and passes them on to the handler function.
 // This is a blocking function and doesn't return until it encounters a network error.
-func (conn *gcloudBroker) Subscribe(subscriptionID string, handler func(*Message) error) error {
+func (conn *gcloudBroker) Consume(subscriptionID string, handler func(*Message) error, options *ConsumerOptions) error {
 	subscription := conn.client.Subscription(subscriptionID)
+	subscription.ReceiveSettings.Synchronous = true
+	subscription.ReceiveSettings.MaxOutstandingMessages = options.MaxOutstandingMessages
 
 	return subscription.Receive(conn.context, func(ctx context.Context, msg *pubsub.Message) {
 		if err := handler(&Message{

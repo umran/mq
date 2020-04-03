@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -14,6 +15,7 @@ import (
 )
 
 type awsBroker struct {
+	*sync.Mutex
 	snsClient *sns.SNS
 	sqsClient *sqs.SQS
 	topicARNs map[string]string
@@ -126,64 +128,94 @@ func (conn *awsBroker) Publish(topicID string, message *Message) error {
 	return err
 }
 
-// Subscribe consumes messages from the specified subscription
+// Consume consumes messages from the specified subscription
 // and passes them on to the handler function.
 // This is a blocking function and doesn't return until it encounters a network error.
-func (conn *awsBroker) Subscribe(subsctiptionID string, handler func(*Message) error) error {
+func (conn *awsBroker) Consume(subsctiptionID string, handler func(*Message) error, options *ConsumerOptions) error {
 	queueURL, err := conn.getQueueURL(subsctiptionID)
 	if err != nil {
 		return err
 	}
 
-	// start blocking
-	for {
-		response, err := conn.sqsClient.ReceiveMessage(&sqs.ReceiveMessageInput{
-			QueueUrl:            &queueURL,
-			MaxNumberOfMessages: aws.Int64(1),
-			WaitTimeSeconds:     aws.Int64(20),
-		})
+	// create a buffered channel of messages
+	msgs := make(chan *sqs.Message, options.MaxOutstandingMessages)
+	// create a channel of errors
+	errs := make(chan error)
 
-		if err != nil {
-			return err
-		}
+	// launch a routine to consume messages
+	go func() {
+		for {
+			response, err := conn.sqsClient.ReceiveMessage(&sqs.ReceiveMessageInput{
+				QueueUrl:            &queueURL,
+				MaxNumberOfMessages: aws.Int64(int64(options.MaxOutstandingMessages)),
+				WaitTimeSeconds:     aws.Int64(2),
+			})
 
-		if len(response.Messages) == 0 {
-			continue
-		}
+			if err != nil {
+				errs <- err
+				return
+			}
 
-		outerMsg := response.Messages[0]
-		outerData := json.RawMessage(*outerMsg.Body)
+			if len(response.Messages) == 0 {
+				continue
+			}
 
-		msg := &snsMessage{}
-		err = json.Unmarshal(outerData, &msg)
-		if err != nil {
-			return err
-		}
-
-		attributes := make(map[string]string)
-		for attribute, value := range msg.MessageAttributes {
-			if value.Type == "String" {
-				attributes[attribute] = value.Value
+			for _, msg := range response.Messages {
+				msgs <- msg
 			}
 		}
+	}()
 
-		if err := handler(&Message{
-			Data:       []byte(msg.Message),
-			Attributes: attributes,
-		}); err == nil {
-			// acknowledge processing by deleting the message from queue
-			// we can safely ignore delete errors because message processing is assumed to be idempotent
-			conn.sqsClient.DeleteMessage(&sqs.DeleteMessageInput{
-				QueueUrl:      &queueURL,
-				ReceiptHandle: outerMsg.ReceiptHandle,
-			})
+	for {
+		select {
+		case msg := <-msgs:
+			if err := conn.handleMessage(msg, queueURL, handler); err != nil {
+				return err
+			}
+		case err := <-errs:
+			return err
 		}
 	}
+}
+
+func (conn *awsBroker) handleMessage(outerMsg *sqs.Message, queueURL string, handler func(*Message) error) error {
+	outerData := json.RawMessage(*outerMsg.Body)
+
+	msg := &snsMessage{}
+	if err := json.Unmarshal(outerData, &msg); err != nil {
+		return err
+	}
+
+	attributes := make(map[string]string)
+	for attribute, value := range msg.MessageAttributes {
+		if value.Type == "String" {
+			attributes[attribute] = value.Value
+		}
+	}
+
+	err := handler(&Message{
+		Data:       []byte(msg.Message),
+		Attributes: attributes,
+	})
+
+	if err == nil {
+		// acknowledge processing by deleting the message from queue
+		// we can safely ignore delete errors because message processing is assumed to be idempotent
+		conn.sqsClient.DeleteMessage(&sqs.DeleteMessageInput{
+			QueueUrl:      &queueURL,
+			ReceiptHandle: outerMsg.ReceiptHandle,
+		})
+	}
+
+	return nil
 }
 
 func (conn *awsBroker) getQueueURL(subscriptionID string) (string, error) {
 	queueURL := conn.queueURLs[subscriptionID]
 	if queueURL == "" {
+		conn.Lock()
+		defer conn.Unlock()
+
 		queueURLResult, err := conn.sqsClient.GetQueueUrl(&sqs.GetQueueUrlInput{
 			QueueName: aws.String(subscriptionID),
 		})
@@ -203,6 +235,8 @@ func (conn *awsBroker) getTopicARN(topicID string) (string, error) {
 	topicARN := conn.topicARNs[topicID]
 
 	if topicARN == "" {
+		conn.Lock()
+		defer conn.Unlock()
 		nextToken := ""
 	search:
 		for {
@@ -245,6 +279,7 @@ func newAwsBroker(region string) (Broker, error) {
 	}
 
 	conn := &awsBroker{
+		Mutex:     new(sync.Mutex),
 		snsClient: sns.New(session),
 		sqsClient: sqs.New(session),
 		topicARNs: make(map[string]string),

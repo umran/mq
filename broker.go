@@ -16,10 +16,10 @@ type Broker interface {
 	// Publish publishes a message to the specified topic.
 	Publish(topicID string, message *Message) error
 
-	// Subscribe consumes messages from the specified subscription
+	// Consume consumes messages from the specified subscription
 	// and passes them on to the handler function.
 	// This is a blocking function and doesn't return until it encounters a network error.
-	Subscribe(subscriptionID string, handler func(*Message) error) error
+	Consume(subscriptionID string, handler func(*Message) error, options *ConsumerOptions) error
 }
 
 // NewBroker returns a new broker configured for an underlying cloud provider.

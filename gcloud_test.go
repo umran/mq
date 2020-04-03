@@ -61,7 +61,7 @@ func TestGCloudPublish(t *testing.T) {
 	}
 }
 
-func TestGCloudSubscribe(t *testing.T) {
+func TestGCloudConsume(t *testing.T) {
 	conn, err := NewBroker(&Config{
 		Provider:      "gcloud",
 		GCloudProject: "cowrie-271900",
@@ -83,9 +83,11 @@ func TestGCloudSubscribe(t *testing.T) {
 	errs := make(chan error)
 
 	go func() {
-		if err := conn.Subscribe("dep-processing-handler", func(msg *Message) error {
+		if err := conn.Consume("dep-processing-handler", func(msg *Message) error {
 			msgs <- string(msg.Data)
 			return nil
+		}, &ConsumerOptions{
+			MaxOutstandingMessages: 10,
 		}); err != nil {
 			errs <- err
 		}
