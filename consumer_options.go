@@ -5,4 +5,7 @@ package mq
 type ConsumerOptions struct {
 	// The maximum number of messages to lease from the queue at any given time.
 	MaxOutstandingMessages int
+
+	// The maximum number of go routines to spawn for message processing
+	Concurrency int
 }

@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -138,17 +140,24 @@ func (conn *awsBroker) Consume(subsctiptionID string, handler func(*Message) err
 	}
 
 	// create a buffered channel of messages
-	msgs := make(chan *sqs.Message, options.MaxOutstandingMessages)
+	msgs := make(chan *sqs.Message)
 	// create a channel of errors
 	errs := make(chan error)
 
-	// launch a routine to consume messages
+	// create a variable to keep count of outstanding messages
+	currentOutstanding := int32(0)
+
+	// launch a routine to receive messages
 	go func() {
 		for {
+			if options.MaxOutstandingMessages-int(currentOutstanding) == 0 {
+				continue
+			}
+
 			response, err := conn.sqsClient.ReceiveMessage(&sqs.ReceiveMessageInput{
 				QueueUrl:            &queueURL,
-				MaxNumberOfMessages: aws.Int64(int64(options.MaxOutstandingMessages)),
-				WaitTimeSeconds:     aws.Int64(2),
+				MaxNumberOfMessages: aws.Int64(int64(math.Min(float64(options.MaxOutstandingMessages)-float64(currentOutstanding), 10))),
+				WaitTimeSeconds:     aws.Int64(20),
 			})
 
 			if err != nil {
@@ -162,20 +171,25 @@ func (conn *awsBroker) Consume(subsctiptionID string, handler func(*Message) err
 
 			for _, msg := range response.Messages {
 				msgs <- msg
+				atomic.AddInt32(&currentOutstanding, 1)
 			}
 		}
 	}()
 
-	for {
-		select {
-		case msg := <-msgs:
-			if err := conn.handleMessage(msg, queueURL, handler); err != nil {
-				return err
+	// spawn go routines to proccess messages
+	for i := 0; i < options.Concurrency; i++ {
+		go func() {
+			for msg := range msgs {
+				if err := conn.handleMessage(msg, queueURL, handler); err != nil {
+					errs <- err
+				}
+
+				atomic.AddInt32(&currentOutstanding, -1)
 			}
-		case err := <-errs:
-			return err
-		}
+		}()
 	}
+
+	return <-errs
 }
 
 func (conn *awsBroker) handleMessage(outerMsg *sqs.Message, queueURL string, handler func(*Message) error) error {

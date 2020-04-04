@@ -87,7 +87,8 @@ func TestGCloudConsume(t *testing.T) {
 			msgs <- string(msg.Data)
 			return nil
 		}, &ConsumerOptions{
-			MaxOutstandingMessages: 10,
+			MaxOutstandingMessages: 1,
+			Concurrency:            1,
 		}); err != nil {
 			errs <- err
 		}

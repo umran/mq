@@ -107,17 +107,27 @@ func (conn *gcloudBroker) Consume(subscriptionID string, handler func(*Message) 
 	subscription.ReceiveSettings.Synchronous = true
 	subscription.ReceiveSettings.MaxOutstandingMessages = options.MaxOutstandingMessages
 
-	return subscription.Receive(conn.context, func(ctx context.Context, msg *pubsub.Message) {
-		if err := handler(&Message{
-			Data:       msg.Data,
-			Attributes: msg.Attributes,
-		}); err != nil {
-			// we can safely ignore nack errors because message processing is assumed to be idempotent
-			msg.Nack()
-		}
+	msgs := make(chan *pubsub.Message)
+	for i := 0; i < options.Concurrency; i++ {
+		go func() {
+			for msg := range msgs {
+				if err := handler(&Message{
+					Data:       msg.Data,
+					Attributes: msg.Attributes,
+				}); err != nil {
+					// we can safely ignore nack errors because message processing is assumed to be idempotent
+					msg.Nack()
+					continue
+				}
 
-		// we can safely ignore ack errors because message processing is assumed to be idempotent
-		msg.Ack()
+				// we can safely ignore ack errors because message processing is assumed to be idempotent
+				msg.Ack()
+			}
+		}()
+	}
+
+	return subscription.Receive(conn.context, func(ctx context.Context, msg *pubsub.Message) {
+		msgs <- msg
 	})
 }
 
