@@ -69,7 +69,7 @@ func newSqsPolicyStatement(queueARN, topicARN string) *sqsPolicyStatement {
 		Action:   "SQS:SendMessage",
 		Resource: queueARN,
 		Condition: map[string]map[string]string{
-			"ArnEquals": map[string]string{
+			"ArnEquals": {
 				"aws:SourceArn": topicARN,
 			},
 		},
