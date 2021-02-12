@@ -34,7 +34,7 @@ This operation is equivalent to creating a queue and subscribing the queue to a 
 err := broker.CreateSubscription("Subscription_ID", &mq.SubscriptionOptions{
     TopicID: "Topic_ID" // the ID of the topic to subscribe to,
     AckDeadline:       10,
-	RetentionDuration: 7 * 24 * 60 * 60,
+    RetentionDuration: 7 * 24 * 60 * 60,
 })
 ```
 
