@@ -25,9 +25,9 @@ type Broker interface {
 // NewBroker returns a new broker configured for an underlying cloud provider.
 func NewBroker(config *Config) (Broker, error) {
 	switch config.Provider {
-	case "aws":
+	case ProviderAWS:
 		return newAwsBroker(config.AWSRegion)
-	case "gcloud":
+	case ProviderGCP:
 		return newGcloudBroker(config.GCloudProject)
 	default:
 		return nil, errors.New("unrecognized provider")

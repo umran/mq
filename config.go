@@ -1,5 +1,12 @@
 package mq
 
+const (
+	// ProviderGCP ...
+	ProviderGCP = "gcloud"
+	// ProviderAWS ...
+	ProviderAWS = "aws"
+)
+
 // Config represents configuration options for the cloud provider.
 // The Provider can currently be either "aws" or "gcloud".
 // If the Provider is "aws", then AWSRegion must be set.
