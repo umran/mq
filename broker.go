@@ -13,10 +13,10 @@ type Broker interface {
 	// provided that the topic and other parameters are the same.
 	CreateSubscription(subscriptionID string, options *SubscriptionOptions) error
 
-	// Publish publishes a message to the specified topic.
+	// Publish publishes a message to a topic.
 	Publish(topicID string, message *Message) error
 
-	// Consume consumes messages from the specified subscription
+	// Consume consumes messages from a subscription
 	// and passes them on to the handler function.
 	// This is a blocking function and doesn't return until it encounters a network error.
 	Consume(subscriptionID string, handler func(*Message) error, options *ConsumerOptions) error
