@@ -50,6 +50,7 @@ func (conn *awsBroker) CreateSubscription(subscriptionID string, options *Subscr
 		Attributes: map[string]*string{
 			"VisibilityTimeout":      aws.String(strconv.FormatInt(int64(options.AckDeadline), 10)),
 			"MessageRetentionPeriod": aws.String(strconv.FormatInt(int64(options.RetentionDuration), 10)),
+			"FifoQueue":              aws.String(strconv.FormatBool(options.EnableMessageOrdering)),
 		},
 	})
 

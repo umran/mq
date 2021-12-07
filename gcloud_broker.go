@@ -36,6 +36,19 @@ func (conn *gcloudBroker) CreateTopic(topicID string) error {
 // This is an idempotent call and returns no error if a subscription with the same id already exists,
 // provided that the topic and other parameters are the same.
 func (conn *gcloudBroker) CreateSubscription(subscriptionID string, options *SubscriptionOptions) error {
+	// set option defaults if not set
+	if options.AckDeadline <= 0 {
+		options.AckDeadline = 10
+	}
+
+	if options.RetentionDuration <= 0 {
+		options.RetentionDuration = 604800
+	}
+
+	if options.ExpirationPolicy < 0 {
+		options.ExpirationPolicy = 0
+	}
+
 	topic := conn.client.Topic(options.TopicID)
 	subscription := conn.client.Subscription(subscriptionID)
 
@@ -73,14 +86,19 @@ func (conn *gcloudBroker) CreateSubscription(subscriptionID string, options *Sub
 			return errors.New("a subscription by that name already exists with a different RetentionDuration")
 		}
 
+		if (config.ExpirationPolicy != nil && config.ExpirationPolicy != time.Duration(options.ExpirationPolicy)*time.Second) || (config.ExpirationPolicy == nil && options.ExpirationPolicy != 0) {
+			return errors.New("a subscription by that name already exists with a different Expiration Policy")
+		}
+
 		return nil
 	}
 
 	_, err = conn.client.CreateSubscription(conn.context, subscriptionID, pubsub.SubscriptionConfig{
-		Topic:             topic,
-		AckDeadline:       time.Duration(options.AckDeadline) * time.Second,
-		RetentionDuration: time.Duration(options.RetentionDuration) * time.Second,
-		ExpirationPolicy:  time.Duration(0),
+		Topic:                 topic,
+		AckDeadline:           time.Duration(options.AckDeadline) * time.Second,
+		RetentionDuration:     time.Duration(options.RetentionDuration) * time.Second,
+		ExpirationPolicy:      time.Duration(options.ExpirationPolicy) * time.Second,
+		EnableMessageOrdering: options.EnableMessageOrdering,
 	})
 
 	return err
@@ -91,8 +109,9 @@ func (conn *gcloudBroker) Publish(topicID string, message *Message) error {
 	topic := conn.client.Topic(topicID)
 
 	r := topic.Publish(conn.context, &pubsub.Message{
-		Data:       message.Data,
-		Attributes: message.Attributes,
+		Data:        message.Data,
+		Attributes:  message.Attributes,
+		OrderingKey: message.OrderingKey,
 	})
 
 	_, err := r.Get(conn.context)
