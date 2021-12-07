@@ -78,6 +78,10 @@ func (conn *gcloudBroker) CreateSubscription(subscriptionID string, options *Sub
 			return errors.New("a subscription by that name already exists and is subscribed to a different topic")
 		}
 
+		if config.EnableMessageOrdering != options.EnableMessageOrdering {
+			return errors.New("a subscription by that name already exists with a different value for EnableMessageOrdering")
+		}
+
 		if config.AckDeadline != time.Duration(options.AckDeadline)*time.Second {
 			return errors.New("a subscription by that name already exists with a different AckDeadline")
 		}
