@@ -112,6 +112,10 @@ func (conn *gcloudBroker) CreateSubscription(subscriptionID string, options *Sub
 func (conn *gcloudBroker) Publish(topicID string, message *Message) error {
 	topic := conn.client.Topic(topicID)
 
+	if message.OrderingKey != "" {
+		topic.EnableMessageOrdering = true
+	}
+
 	r := topic.Publish(conn.context, &pubsub.Message{
 		Data:        message.Data,
 		Attributes:  message.Attributes,
