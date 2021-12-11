@@ -226,11 +226,11 @@ func (conn *awsBroker) handleMessage(outerMsg *sqs.Message, queueURL string, han
 }
 
 func (conn *awsBroker) getQueueURL(subscriptionID string) (string, error) {
+	conn.Lock()
+	defer conn.Unlock()
+
 	queueURL := conn.queueURLs[subscriptionID]
 	if queueURL == "" {
-		conn.Lock()
-		defer conn.Unlock()
-
 		queueURLResult, err := conn.sqsClient.GetQueueUrl(&sqs.GetQueueUrlInput{
 			QueueName: aws.String(subscriptionID),
 		})
