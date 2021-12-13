@@ -17,7 +17,7 @@ import (
 )
 
 type awsBroker struct {
-	*sync.Mutex
+	mutex     *sync.RWMutex
 	snsClient *sns.SNS
 	sqsClient *sqs.SQS
 	topicARNs map[string]string
@@ -27,6 +27,9 @@ type awsBroker struct {
 // CreateTopic creates a new topic.
 // This is an idempotent call and returns no error if the topic already exists.
 func (conn *awsBroker) CreateTopic(topicID string) error {
+	conn.mutex.Lock()
+	defer conn.mutex.Unlock()
+
 	_, err := conn.snsClient.CreateTopic(&sns.CreateTopicInput{
 		Name: aws.String(topicID),
 	})
@@ -43,6 +46,9 @@ func (conn *awsBroker) CreateSubscription(subscriptionID string, options *Subscr
 	if err != nil {
 		return err
 	}
+
+	conn.mutex.Lock()
+	defer conn.mutex.Unlock()
 
 	// create the queue
 	queue, err := conn.sqsClient.CreateQueue(&sqs.CreateQueueInput{
@@ -76,10 +82,15 @@ func (conn *awsBroker) CreateSubscription(subscriptionID string, options *Subscr
 	if existingPolicy := queueAttributes.Attributes["Policy"]; existingPolicy != nil {
 		policyBytes := json.RawMessage(*existingPolicy)
 
-		json.Unmarshal(policyBytes, policy)
+		if err := json.Unmarshal(policyBytes, policy); err != nil {
+			return err
+		}
 	}
 
-	policy.AddPermission(queueARN, topicARN)
+	if err := policy.AddPermission(queueARN, topicARN); err != nil {
+		return err
+	}
+
 	policyBytes, _ := json.Marshal(policy)
 
 	_, err = conn.sqsClient.SetQueueAttributes(&sqs.SetQueueAttributesInput{
@@ -151,7 +162,7 @@ func (conn *awsBroker) Consume(subsctiptionID string, handler func(*Message) err
 	// launch a routine to receive messages
 	go func() {
 		for {
-			if options.MaxOutstandingMessages-int(currentOutstanding) == 0 {
+			if options.MaxOutstandingMessages-int(atomic.LoadInt32(&currentOutstanding)) == 0 {
 				continue
 			}
 
@@ -226,62 +237,64 @@ func (conn *awsBroker) handleMessage(outerMsg *sqs.Message, queueURL string, han
 }
 
 func (conn *awsBroker) getQueueURL(subscriptionID string) (string, error) {
-	conn.Lock()
-	defer conn.Unlock()
-
-	queueURL := conn.queueURLs[subscriptionID]
-	if queueURL == "" {
-		queueURLResult, err := conn.sqsClient.GetQueueUrl(&sqs.GetQueueUrlInput{
-			QueueName: aws.String(subscriptionID),
-		})
-
-		if err != nil {
-			return queueURL, err
-		}
-
-		queueURL = *queueURLResult.QueueUrl
-		conn.queueURLs[subscriptionID] = queueURL
+	conn.mutex.RLock()
+	queueURL, ok := conn.queueURLs[subscriptionID]
+	if ok {
+		defer conn.mutex.RUnlock()
+		return queueURL, nil
 	}
+
+	conn.mutex.RUnlock()
+	conn.mutex.Lock()
+	defer conn.mutex.Unlock()
+
+	queueURLResult, err := conn.sqsClient.GetQueueUrl(&sqs.GetQueueUrlInput{
+		QueueName: aws.String(subscriptionID),
+	})
+
+	if err != nil {
+		return queueURL, err
+	}
+
+	queueURL = *queueURLResult.QueueUrl
+	conn.queueURLs[subscriptionID] = queueURL
 
 	return queueURL, nil
 }
 
 func (conn *awsBroker) getTopicARN(topicID string) (string, error) {
-	topicARN := conn.topicARNs[topicID]
-
-	if topicARN == "" {
-		conn.Lock()
-		defer conn.Unlock()
-		nextToken := ""
-	search:
-		for {
-			listTopicsInput := &sns.ListTopicsInput{}
-			if nextToken != "" {
-				listTopicsInput.NextToken = &nextToken
-			}
-
-			response, err := conn.snsClient.ListTopics(listTopicsInput)
-			if err != nil {
-				return topicARN, err
-			}
-
-			for _, topic := range response.Topics {
-				if strings.HasSuffix(*topic.TopicArn, fmt.Sprintf(":%s", topicID)) {
-					topicARN = *topic.TopicArn
-					conn.topicARNs[topicID] = topicARN
-					break search
-				}
-			}
-
-			if response.NextToken != nil {
-				nextToken = *response.NextToken
-			} else {
-				return topicARN, errors.New("topic not found")
-			}
-		}
+	conn.mutex.RLock()
+	topicARN, ok := conn.topicARNs[topicID]
+	if ok {
+		defer conn.mutex.RUnlock()
+		return topicARN, nil
 	}
 
-	return topicARN, nil
+	conn.mutex.RUnlock()
+	conn.mutex.Lock()
+	defer conn.mutex.Unlock()
+
+	listTopicsInput := &sns.ListTopicsInput{}
+	for {
+		response, err := conn.snsClient.ListTopics(listTopicsInput)
+		if err != nil {
+			return topicARN, err
+		}
+
+		for _, topic := range response.Topics {
+			if strings.HasSuffix(*topic.TopicArn, fmt.Sprintf(":%s", topicID)) {
+				topicARN = *topic.TopicArn
+				conn.topicARNs[topicID] = topicARN
+				return topicARN, nil
+			}
+		}
+
+		if response.NextToken == nil {
+			return topicARN, errors.New("topic not found")
+		}
+
+		listTopicsInput.NextToken = response.NextToken
+	}
 }
 
 func newAwsBroker(region string) (Broker, error) {
@@ -294,7 +307,7 @@ func newAwsBroker(region string) (Broker, error) {
 	}
 
 	conn := &awsBroker{
-		Mutex:     new(sync.Mutex),
+		mutex:     new(sync.RWMutex),
 		snsClient: sns.New(session),
 		sqsClient: sqs.New(session),
 		topicARNs: make(map[string]string),

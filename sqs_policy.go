@@ -27,7 +27,7 @@ func (policy *sqsPolicy) AddPermission(queueARN, topicARN string) error {
 	for _, statementBytes := range policy.Statement {
 		statement := new(sqsPolicyStatement)
 		if err := json.Unmarshal(statementBytes, statement); err != nil {
-			continue
+			return err
 		}
 
 		if statement.Effect != "Allow" ||

@@ -3,19 +3,25 @@ package mq
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"cloud.google.com/go/pubsub"
 )
 
 type gcloudBroker struct {
-	context context.Context
-	client  *pubsub.Client
+	mutex         *sync.RWMutex
+	context       context.Context
+	client        *pubsub.Client
+	publishTopics map[string]*pubsub.Topic
 }
 
 // CreateTopic creates a new topic.
 // This is an idempotent call and returns no error if the topic already exists.
 func (conn *gcloudBroker) CreateTopic(topicID string) error {
+	conn.mutex.Lock()
+	defer conn.mutex.Unlock()
+
 	topic := conn.client.Topic(topicID)
 
 	// check if the topic exists
@@ -36,6 +42,9 @@ func (conn *gcloudBroker) CreateTopic(topicID string) error {
 // This is an idempotent call and returns no error if a subscription with the same id already exists,
 // provided that the topic and other parameters are the same.
 func (conn *gcloudBroker) CreateSubscription(subscriptionID string, options *SubscriptionOptions) error {
+	conn.mutex.Lock()
+	defer conn.mutex.Unlock()
+
 	// set option defaults if not set
 	if options.AckDeadline <= 0 {
 		options.AckDeadline = 10
@@ -110,7 +119,7 @@ func (conn *gcloudBroker) CreateSubscription(subscriptionID string, options *Sub
 
 // Publish publishes a message to the specified topic.
 func (conn *gcloudBroker) Publish(topicID string, message *Message) error {
-	topic := conn.client.Topic(topicID)
+	topic := conn.getPublishTopic(topicID)
 
 	if message.OrderingKey != "" {
 		topic.EnableMessageOrdering = true
@@ -134,28 +143,36 @@ func (conn *gcloudBroker) Consume(subscriptionID string, handler func(*Message) 
 	subscription.ReceiveSettings.Synchronous = true
 	subscription.ReceiveSettings.MaxOutstandingMessages = options.MaxOutstandingMessages
 
-	msgs := make(chan *pubsub.Message)
-	for i := 0; i < options.Concurrency; i++ {
-		go func() {
-			for msg := range msgs {
-				if err := handler(&Message{
-					Data:       msg.Data,
-					Attributes: msg.Attributes,
-				}); err != nil {
-					// we can safely ignore nack errors because message processing is assumed to be idempotent
-					msg.Nack()
-					continue
-				}
+	return subscription.Receive(conn.context, func(ctx context.Context, msg *pubsub.Message) {
+		if err := handler(&Message{
+			Data:       msg.Data,
+			Attributes: msg.Attributes,
+		}); err != nil {
+			// we can safely ignore nack errors because message processing is assumed to be idempotent
+			msg.Nack()
+			return
+		}
 
-				// we can safely ignore ack errors because message processing is assumed to be idempotent
-				msg.Ack()
-			}
-		}()
+		// we can safely ignore ack errors because message processing is assumed to be idempotent
+		msg.Ack()
+	})
+}
+
+func (conn *gcloudBroker) getPublishTopic(topicID string) *pubsub.Topic {
+	conn.mutex.RLock()
+	topic, ok := conn.publishTopics[topicID]
+	if ok {
+		defer conn.mutex.RUnlock()
+		return topic
 	}
 
-	return subscription.Receive(conn.context, func(ctx context.Context, msg *pubsub.Message) {
-		msgs <- msg
-	})
+	conn.mutex.RUnlock()
+	conn.mutex.Lock()
+	defer conn.mutex.Unlock()
+
+	topic = conn.client.Topic(topicID)
+	conn.publishTopics[topicID] = topic
+	return topic
 }
 
 func newGcloudBroker(project string) (Broker, error) {
@@ -166,8 +183,10 @@ func newGcloudBroker(project string) (Broker, error) {
 	}
 
 	conn := &gcloudBroker{
-		context: ctx,
-		client:  client,
+		mutex:         new(sync.RWMutex),
+		context:       ctx,
+		client:        client,
+		publishTopics: make(map[string]*pubsub.Topic),
 	}
 
 	return conn, nil
