@@ -248,6 +248,11 @@ func (conn *awsBroker) getQueueURL(subscriptionID string) (string, error) {
 	conn.mutex.Lock()
 	defer conn.mutex.Unlock()
 
+	queueURL, ok = conn.queueURLs[subscriptionID]
+	if ok {
+		return queueURL, nil
+	}
+
 	queueURLResult, err := conn.sqsClient.GetQueueUrl(&sqs.GetQueueUrlInput{
 		QueueName: aws.String(subscriptionID),
 	})
@@ -273,6 +278,11 @@ func (conn *awsBroker) getTopicARN(topicID string) (string, error) {
 	conn.mutex.RUnlock()
 	conn.mutex.Lock()
 	defer conn.mutex.Unlock()
+
+	topicARN, ok = conn.topicARNs[topicID]
+	if ok {
+		return topicARN, nil
+	}
 
 	listTopicsInput := &sns.ListTopicsInput{}
 	for {

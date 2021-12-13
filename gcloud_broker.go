@@ -170,6 +170,11 @@ func (conn *gcloudBroker) getPublishTopic(topicID string) *pubsub.Topic {
 	conn.mutex.Lock()
 	defer conn.mutex.Unlock()
 
+	topic, ok = conn.publishTopics[topicID]
+	if ok {
+		return topic
+	}
+
 	topic = conn.client.Topic(topicID)
 	conn.publishTopics[topicID] = topic
 	return topic
