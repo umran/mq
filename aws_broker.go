@@ -168,7 +168,7 @@ func (conn *awsBroker) Consume(subsctiptionID string, handler func(*Message) err
 
 			response, err := conn.sqsClient.ReceiveMessage(&sqs.ReceiveMessageInput{
 				QueueUrl:            &queueURL,
-				MaxNumberOfMessages: aws.Int64(int64(math.Min(float64(options.MaxOutstandingMessages)-float64(currentOutstanding), 10))),
+				MaxNumberOfMessages: aws.Int64(int64(math.Min(float64(options.MaxOutstandingMessages)-float64(atomic.LoadInt32(&currentOutstanding)), 10))),
 				WaitTimeSeconds:     aws.Int64(20),
 			})
 
