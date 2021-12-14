@@ -140,7 +140,6 @@ func (conn *gcloudBroker) Publish(topicID string, message *Message) error {
 // This is a blocking function and doesn't return until it encounters a network error.
 func (conn *gcloudBroker) Consume(subscriptionID string, handler func(*Message) error, options *ConsumerOptions) error {
 	subscription := conn.client.Subscription(subscriptionID)
-	subscription.ReceiveSettings.Synchronous = true
 	subscription.ReceiveSettings.MaxOutstandingMessages = options.MaxOutstandingMessages
 
 	return subscription.Receive(conn.context, func(ctx context.Context, msg *pubsub.Message) {
